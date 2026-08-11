@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
   error:
     include-message: always
 
@@ -8,15 +8,15 @@ spring:
     name: transfer-platform
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/transfer_db
-    username: postgres
-    password: erika
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/transfer_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:erika}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${DDL_AUTO:update}
+    show-sql: ${SHOW_SQL:true}
     open-in-view: false
 
   mail:
@@ -32,25 +32,25 @@ spring:
             enable: true
 
 app:
-  frontend-url: http://localhost:4200
+  frontend-url: ${FRONTEND_URL:http://localhost:4200}
 
   email:
     provider: ${EMAIL_PROVIDER:console}
     from: ${MAIL_USERNAME:}
 
-  plafond-mensuel: 1000000
+  plafond-mensuel: ${PLAFOND_MENSUEL:1000000}
 
   sms:
-    provider: console
+    provider: ${SMS_PROVIDER:console}
 
   jwt:
-    secret: "changer-cette-cle-secrete-de-64-caracteres-minimum-en-production!!"
-    expiration-ms: 86400000
+    secret: ${JWT_SECRET:changer-cette-cle-secrete-de-64-caracteres-minimum-en-production!!}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 
 springdoc:
   api-docs:
-    enabled: true
+    enabled: ${SWAGGER_ENABLED:true}
 
   swagger-ui:
-    enabled: true
+    enabled: ${SWAGGER_ENABLED:true}
     path: /swagger-ui.html
