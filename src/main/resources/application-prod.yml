@@ -1,0 +1,6 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/transfer_db
+    username: postgres
+    password: erika
+    driver-class-name: org.postgresql.Driver

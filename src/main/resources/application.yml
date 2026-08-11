@@ -1,0 +1,56 @@
+server:
+  port: 8080
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: transfer-platform
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/transfer_db
+    username: postgres
+    password: erika
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+app:
+  frontend-url: http://localhost:4200
+
+  email:
+    provider: ${EMAIL_PROVIDER:console}
+    from: ${MAIL_USERNAME:}
+
+  plafond-mensuel: 1000000
+
+  sms:
+    provider: console
+
+  jwt:
+    secret: "changer-cette-cle-secrete-de-64-caracteres-minimum-en-production!!"
+    expiration-ms: 86400000
+
+springdoc:
+  api-docs:
+    enabled: true
+
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
