@@ -19,6 +19,7 @@ public class TransfertController {
     public TransfertController(TransfertService transfertService) {
         this.transfertService = transfertService;
     }
+     
  
     /** Vérification du plafond mensuel Hors CEMAC avant exécution. */
     @PostMapping("/verification")
@@ -74,5 +75,12 @@ public class TransfertController {
     @GetMapping("/clients")
     public List<ClientConnu> clientsConnus(@RequestParam(defaultValue = "") String q) {
         return transfertService.clientsConnus(q);
+    }
+
+    /** Détail d'un transfert pour la page « voir informations ». */
+    @GetMapping("/{id}")
+    public TransfertResponse detail(@PathVariable Long id,
+                                    @AuthenticationPrincipal Agent agent) {
+        return transfertService.detail(id, agent);
     }
 }

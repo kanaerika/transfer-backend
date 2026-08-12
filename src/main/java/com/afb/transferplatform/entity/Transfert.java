@@ -34,7 +34,7 @@ public class Transfert {
     /** Référence de la plateforme de transfert externe, saisie par l'agent (ex: PLT-0098-2026) */
     private String reference;
 
-    /** Référence interne générée par la plateforme à l'exécution (ex: V000123), imprimée sur le bordereau */
+    /** Référence interne générée par la plateforme à l'exécution (ex: V4K9QXHB), imprimée sur le bordereau */
     private String referenceVerification;
  
     /** Motif d'annulation ou de rejet (obligatoire, min. 10 caractères) */

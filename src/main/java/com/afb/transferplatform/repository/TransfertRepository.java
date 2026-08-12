@@ -18,6 +18,8 @@ public interface TransfertRepository extends JpaRepository<Transfert, Long> {
     List<Transfert> findByStatutOrderByIdDesc(StatutTransfert statut);
  
     Optional<Transfert> findFirstByNomClientIgnoreCaseOrderByIdDesc(String nomClient);
+    /** Transferts d'un agent pour un jour donné (tous statuts), pour le bilan journalier. */
+    List<Transfert> findByAgentIdAndDateTransfertOrderByIdDesc(Long agentId, LocalDate jour);
  
     /** Cumul Hors CEMAC du mois : somme des transferts EXECUTES du client sur la période. */
     @Query("""

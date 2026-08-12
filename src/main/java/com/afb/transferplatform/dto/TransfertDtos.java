@@ -82,7 +82,8 @@ public class TransfertDtos {
             int rejetes,
             int annules,
             int nonClotures,
-            int total) {}
+            int total,
+            List<TransfertResponse> lignes) {}
  
     public record ReferentielResponse(
             List<String> naturesPiece,
