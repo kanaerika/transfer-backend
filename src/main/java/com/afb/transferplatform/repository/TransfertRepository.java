@@ -35,14 +35,14 @@ public interface TransfertRepository extends JpaRepository<Transfert, Long> {
                       @Param("debut") LocalDate debut,
                       @Param("fin") LocalDate fin);
  
-    /** Clients connus (infos du transfert le plus récent de chaque client) dont le nom commence par la saisie. */
+    /** Clients connus (infos du transfert le plus récent de chaque client) dont le nom contient la saisie. */
     @Query("""
            SELECT t FROM Transfert t
-           WHERE UPPER(t.nomClient) LIKE CONCAT(UPPER(:prefixe), '%')
+           WHERE UPPER(t.nomClient) LIKE CONCAT('%', UPPER(:recherche), '%')
              AND t.id = (SELECT MAX(t2.id) FROM Transfert t2 WHERE UPPER(t2.nomClient) = UPPER(t.nomClient))
            ORDER BY t.nomClient
            """)
-    List<Transfert> rechercherClientsConnus(@Param("prefixe") String prefixe);
+    List<Transfert> rechercherClientsConnus(@Param("recherche") String recherche);
 
     /** Historique scopé au partenaire de l'utilisateur connecté. */
     List<Transfert> findByPartenaireIdOrderByIdDesc(Long partenaireId);

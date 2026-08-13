@@ -34,10 +34,10 @@ public class TransfertService {
     private static final String ALPHABET_CODE = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
 
-    /** Génère une référence de vérification aléatoire (ex: V4K9QXHB), non séquentielle. */
+    /** Génère une référence de vérification aléatoire (ex: V4K9QX), non séquentielle. */
     private static String genererReferenceVerification(String prefixe) {
         StringBuilder code = new StringBuilder(prefixe);
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 6; i++) {
             code.append(ALPHABET_CODE.charAt(RANDOM.nextInt(ALPHABET_CODE.length())));
         }
         return code.toString();
@@ -99,6 +99,7 @@ public class TransfertService {
         long restant = Math.max(0, plafond - cumul);
         boolean autorise = req.montant() <= restant;
 
+        Long transfertId = null;
         if (!autorise) {
             // Traçabilité : chaque refus est enregistré comme un transfert REFUSE_PLAFOND,
             // visible dans le bilan journalier et consultable en détail.
@@ -107,6 +108,11 @@ public class TransfertService {
                     cumul, req.montant(), plafond);
             enregistrerRefus(req, nomClient, cumul, motif, agent);
             incrementer(agent, c -> c.setRejetes(c.getRejetes() + 1));
+        } else {
+            // Réservation immédiate : si l'agent n'achève pas la saisie de la référence,
+            // ce transfert reste visible au bilan journalier comme « non clôturé ».
+            transfertId = enregistrerNonCloture(req, nomClient, cumul, agent);
+            incrementer(agent, c -> c.setNonClotures(c.getNonClotures() + 1));
         }
 
         int pctUtilise = (int) Math.min(100, Math.round(cumul * 100.0 / plafond));
@@ -125,7 +131,27 @@ public class TransfertService {
                 : "Plafond dépassé — ce client ne peut pas transférer " + montantFmt + " FCFA ce mois-ci.";
 
         return new VerificationResponse(autorise, message, plafond, cumul,
-                req.montant(), restant, pctUtilise, pctApres, dernier);
+                req.montant(), restant, pctUtilise, pctApres, dernier, transfertId);
+    }
+
+    /** Réserve un transfert autorisé mais pas encore exécuté (référence plateforme manquante). */
+    private Long enregistrerNonCloture(VerificationRequest req, String nomClient, long cumul, Agent agent) {
+        Transfert t = new Transfert();
+        t.setNomClient(nomClient);
+        t.setDateNaissance(req.dateNaissance().trim());
+        t.setNaturePiece(req.naturePiece());
+        t.setNumeroPiece(req.numeroPiece().trim());
+        t.setMontant(req.montant());
+        t.setPaysDestination(req.paysDestination());
+        t.setStatut(StatutTransfert.NON_CLOTURE);
+        t.setAgence(agent.getAgence());
+        t.setDateTransfert(LocalDate.now(java.time.Clock.systemDefaultZone()));
+        t.setCumulMois(cumul); // cumul avant ce transfert ; complété à la clôture
+        t.setAgent(agent);
+        t.setPartenaire(agent.getPartenaire());
+        t.setReferenceVerification(genererReferenceVerification("N"));
+        transfertRepository.save(t);
+        return t.getId();
     }
 
     /** Enregistre une tentative refusée pour dépassement de plafond (trace au bilan). */
@@ -152,6 +178,12 @@ public class TransfertService {
     /** Enregistre le transfert exécuté (après saisie de la référence plateforme). */
     @Transactional
     public TransfertResponse executer(ExecutionRequest req, Agent agent) {
+        // La vérification a déjà réservé ce transfert en NON_CLOTURE : on le finalise
+        // plutôt que d'en créer un second.
+        if (req.transfertId() != null) {
+            return cloturer(req.transfertId(), req.reference(), req.canal(), agent);
+        }
+
         String nomClient = normaliser(req.nomClient());
         validerPiece(req.naturePiece(), req.numeroPiece());
 
@@ -181,6 +213,49 @@ public class TransfertService {
 
         incrementer(agent, c -> c.setExecutes(c.getExecutes() + 1));
         return TransfertResponse.from(t);
+    }
+
+    /**
+     * Clôture différée d'un transfert resté NON_CLOTURE : l'agent saisit enfin la référence
+     * de la plateforme externe (juste après la vérification, ou plus tard depuis la liste
+     * des transferts non clôturés).
+     */
+    @Transactional
+    public TransfertResponse cloturer(Long id, String reference, String canal, Agent agent) {
+        Transfert t = transfertRepository.findById(Objects.requireNonNull(id))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Transfert introuvable."));
+        if (t.getPartenaire() == null || !t.getPartenaire().getId().equals(partenaireDe(agent))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Ce transfert n'appartient pas à votre institution.");
+        }
+        if (t.getStatut() != StatutTransfert.NON_CLOTURE) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Seul un transfert non clôturé peut être clôturé.");
+        }
+
+        t.setReference(reference.trim());
+        if (canal != null && !canal.isBlank()) t.setCanal(canal);
+        t.setStatut(StatutTransfert.EXECUTE);
+        t.setCumulMois(t.getCumulMois() + t.getMontant());
+        t.setReferenceVerification(genererReferenceVerification("V"));
+        transfertRepository.save(t);
+
+        // Les compteurs du jour d'origine (pas forcément aujourd'hui) sont ajustés :
+        // ce transfert n'est plus « non clôturé » mais « exécuté ».
+        Agent agentOrigine = t.getAgent() != null ? t.getAgent() : agent;
+        incrementer(agentOrigine, t.getDateTransfert(), c -> {
+            c.setNonClotures(Math.max(0, c.getNonClotures() - 1));
+            c.setExecutes(c.getExecutes() + 1);
+        });
+        return TransfertResponse.from(t);
+    }
+
+    /** Transferts non clôturés du partenaire de l'agent connecté, à finaliser plus tard. */
+    @Transactional(readOnly = true)
+    public List<TransfertResponse> nonClotures(String recherche, Agent agent) {
+        return filtrer(transfertRepository.findByPartenaireIdAndStatutOrderByIdDesc(
+                partenaireDe(agent), StatutTransfert.NON_CLOTURE), recherche);
     }
 
     /** Historique scopé au partenaire de l'agent connecté. */
@@ -296,7 +371,11 @@ public class TransfertService {
     }
 
     private void incrementer(Agent agent, java.util.function.Consumer<CompteurJournalier> maj) {
-        LocalDate jour = LocalDate.now(java.time.Clock.systemDefaultZone());
+        incrementer(agent, LocalDate.now(java.time.Clock.systemDefaultZone()), maj);
+    }
+
+    /** Ajuste le compteur d'un jour précis (ex : clôture différée d'un transfert d'un jour antérieur). */
+    private void incrementer(Agent agent, LocalDate jour, java.util.function.Consumer<CompteurJournalier> maj) {
         CompteurJournalier c = compteurRepository.findByAgentAndJour(agent, jour)
             .orElseGet(() -> new CompteurJournalier(agent, jour));
         maj.accept(c);

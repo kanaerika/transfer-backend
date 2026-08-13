@@ -48,6 +48,21 @@ public class TransfertController {
                                               @AuthenticationPrincipal Agent agent) {
         return transfertService.annulables(q, agent);
     }
+
+    /** Transferts non clôturés du partenaire de l'agent connecté, à finaliser plus tard. */
+    @GetMapping("/non-clotures")
+    public List<TransfertResponse> nonClotures(@RequestParam(required = false) String q,
+                                               @AuthenticationPrincipal Agent agent) {
+        return transfertService.nonClotures(q, agent);
+    }
+
+    /** Clôture différée : saisie de la référence plateforme pour un transfert non clôturé. */
+    @PatchMapping("/{id}/cloture")
+    public TransfertResponse cloturer(@PathVariable Long id,
+                                      @Valid @RequestBody ClotureRequest request,
+                                      @AuthenticationPrincipal Agent agent) {
+        return transfertService.cloturer(id, request.reference(), request.canal(), agent);
+    }
  
     /** Annulation d'un transfert exécuté. */
     @PatchMapping("/{id}/annulation")

@@ -27,7 +27,8 @@ public class TransfertDtos {
             long montantRestant,
             int pourcentageUtilise,
             int pourcentageApres,
-            DernierTransfert dernierTransfert) {}
+            DernierTransfert dernierTransfert,
+            Long transfertId) {}
  
     public record DernierTransfert(
             String nomClient,
@@ -42,6 +43,12 @@ public class TransfertDtos {
             @NotBlank String numeroPiece,
             @Min(1) long montant,
             @NotBlank String paysDestination,
+            @NotBlank String reference,
+            String canal,
+            Long transfertId) {}
+
+    /** Clôture différée d'un transfert resté NON_CLOTURE (référence saisie plus tard). */
+    public record ClotureRequest(
             @NotBlank String reference,
             String canal) {}
  
