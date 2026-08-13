@@ -30,11 +30,11 @@ public class TransfertService {
     private static final DateTimeFormatter FMT_FR =
             DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
 
-    /** Alphabet sans caractères ambigus (0/O, 1/I) : majoritairement des lettres pour une plage large. */
-    private static final String ALPHABET_CODE = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    /** Uniquement des lettres, pas de chiffres. */
+    private static final String ALPHABET_CODE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
 
-    /** Génère une référence de vérification aléatoire (ex: V4K9QX), non séquentielle. */
+    /** Génère une référence de vérification aléatoire (ex: VDKQXH), non séquentielle. */
     private static String genererReferenceVerification(String prefixe) {
         StringBuilder code = new StringBuilder(prefixe);
         for (int i = 0; i < 6; i++) {
