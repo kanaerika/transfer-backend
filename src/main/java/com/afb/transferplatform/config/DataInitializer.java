@@ -64,7 +64,7 @@ public class DataInitializer {
                         admin.setEmail("admin@afriland.cm");
                         admin.setRole("ADMIN");
                         admin.setPartenaire(afriland);
-                        admin.setMotDePasse(encoder.encode("Admin@2026"));
+                        admin.setMotDePasse(encoder.encode("    "));
                         admin.setAgence("SIEGE");
                         admin.setCodeAgent("00");
                         admin.setActif(true);
