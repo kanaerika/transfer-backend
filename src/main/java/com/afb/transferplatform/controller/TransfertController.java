@@ -92,6 +92,17 @@ public class TransfertController {
         return transfertService.clientsConnus(q);
     }
 
+    /**
+     * Contrôle en lecture seule du plafond déjà atteint par un client (nom + n° de pièce +
+     * date de naissance), pour bloquer la saisie dès la pièce d'identité renseignée.
+     */
+    @GetMapping("/plafond-client")
+    public PlafondClientResponse plafondClient(@RequestParam String nomClient,
+                                               @RequestParam String numeroPiece,
+                                               @RequestParam String dateNaissance) {
+        return transfertService.plafondClient(nomClient, numeroPiece, dateNaissance);
+    }
+
     /** Détail d'un transfert pour la page « voir informations ». */
     @GetMapping("/{id}")
     public TransfertResponse detail(@PathVariable Long id,

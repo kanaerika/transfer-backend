@@ -21,17 +21,25 @@ public interface TransfertRepository extends JpaRepository<Transfert, Long> {
     /** Transferts d'un agent pour un jour donné (tous statuts), pour le bilan journalier. */
     List<Transfert> findByAgentIdAndDateTransfertOrderByIdDesc(Long agentId, LocalDate jour);
  
-    /** Cumul Hors CEMAC du mois : somme des transferts EXECUTES du client sur la période. */
+    /**
+     * Cumul Hors CEMAC du mois : somme des transferts EXECUTES du client sur la période.
+     * L'identité du client est vérifiée par nom + n° de pièce + date de naissance (pas le nom seul),
+     * pour éviter qu'un homonyme soit confondu avec un autre client.
+     */
     @Query("""
            SELECT COALESCE(SUM(t.montant), 0)
            FROM Transfert t
            WHERE UPPER(t.nomClient) = UPPER(:nomClient)
+             AND UPPER(t.numeroPiece) = UPPER(:numeroPiece)
+             AND t.dateNaissance = :dateNaissance
              AND t.statut = com.afb.transferplatform.entity.StatutTransfert.EXECUTE
              AND t.paysDestination NOT IN ('Cameroun', 'Congo', 'Gabon',
                  'Guinée équatoriale', 'République centrafricaine', 'Tchad')
              AND t.dateTransfert BETWEEN :debut AND :fin
            """)
     long cumulMensuel(@Param("nomClient") String nomClient,
+                      @Param("numeroPiece") String numeroPiece,
+                      @Param("dateNaissance") String dateNaissance,
                       @Param("debut") LocalDate debut,
                       @Param("fin") LocalDate fin);
  

@@ -107,5 +107,11 @@ public class TransfertDtos {
             String dateNaissance,
             String naturePiece,
             String numeroPiece) {}
+
+    /** Contrôle en lecture seule (sans enregistrement) du plafond déjà atteint par un client. */
+    public record PlafondClientResponse(
+            long cumul,
+            long plafond,
+            boolean depasse) {}
 }
  

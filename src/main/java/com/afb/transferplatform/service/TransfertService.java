@@ -95,7 +95,7 @@ public class TransfertService {
         validerPiece(req.naturePiece(), req.numeroPiece());
 
         long plafond = configuration.plafondMensuel();
-        long cumul = cumulDuMois(nomClient);
+        long cumul = cumulDuMois(nomClient, req.numeroPiece(), req.dateNaissance());
         long restant = Math.max(0, plafond - cumul);
         boolean autorise = req.montant() <= restant;
 
@@ -187,7 +187,7 @@ public class TransfertService {
         String nomClient = normaliser(req.nomClient());
         validerPiece(req.naturePiece(), req.numeroPiece());
 
-        long cumul = cumulDuMois(nomClient);
+        long cumul = cumulDuMois(nomClient, req.numeroPiece(), req.dateNaissance());
         if (req.montant() > configuration.plafondMensuel() - cumul) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Plafond mensuel dépassé : exécution refusée.");
@@ -310,21 +310,34 @@ public class TransfertService {
         return TransfertResponse.from(t);
     }
 
-    /** Rejet d'un transfert exécuté (avec motif obligatoire, min. 10 caractères). */
+    /**
+     * Rejet d'un transfert exécuté, ou abandon (avec justification) d'un transfert encore
+     * NON_CLOTURE — ex : l'agent quitte la vérification avant d'avoir saisi la référence.
+     */
     @Transactional
     public TransfertResponse rejeter(Long id, String motif, Agent agent) {
         validerMotif(motif);
         Transfert t = transfertRepository.findById(Objects.requireNonNull(id))
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                 "Transfert introuvable."));
-        if (t.getStatut() != StatutTransfert.EXECUTE) {
+        StatutTransfert avant = t.getStatut();
+        if (avant != StatutTransfert.EXECUTE && avant != StatutTransfert.NON_CLOTURE) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Seul un transfert exécuté peut être rejeté.");
+                    "Seul un transfert exécuté ou non clôturé peut être rejeté.");
         }
         t.setStatut(StatutTransfert.REJETE);
         t.setMotif(motif.trim());
         transfertRepository.save(t);
-        incrementer(agent, c -> c.setRejetes(c.getRejetes() + 1));
+
+        if (avant == StatutTransfert.NON_CLOTURE) {
+            Agent agentOrigine = t.getAgent() != null ? t.getAgent() : agent;
+            incrementer(agentOrigine, t.getDateTransfert(), c -> {
+                c.setNonClotures(Math.max(0, c.getNonClotures() - 1));
+                c.setRejetes(c.getRejetes() + 1);
+            });
+        } else {
+            incrementer(agent, c -> c.setRejetes(c.getRejetes() + 1));
+        }
         return TransfertResponse.from(t);
     }
 
@@ -353,11 +366,13 @@ public class TransfertService {
 
     // ------------------------------------------------------------------
 
-    private long cumulDuMois(String nomClient) {
+    /** Identité vérifiée par nom + n° de pièce + date de naissance (pas le nom seul). */
+    private long cumulDuMois(String nomClient, String numeroPiece, String dateNaissance) {
         LocalDate maintenant = LocalDate.now(java.time.Clock.systemDefaultZone());
         LocalDate debut = maintenant.withDayOfMonth(1);
         LocalDate fin = maintenant.withDayOfMonth(maintenant.lengthOfMonth());
-        return transfertRepository.cumulMensuel(normaliser(nomClient), debut, fin);
+        return transfertRepository.cumulMensuel(normaliser(nomClient), numeroPiece.trim(),
+                dateNaissance.trim(), debut, fin);
     }
 
     private List<TransfertResponse> filtrer(List<Transfert> liste, String recherche) {
@@ -393,5 +408,17 @@ public class TransfertService {
                         t.getNaturePiece(),
                         t.getNumeroPiece()))
                 .toList();
+    }
+
+    /**
+     * Contrôle en lecture seule (aucun enregistrement) du plafond déjà atteint par un client,
+     * identifié par nom + n° de pièce + date de naissance. Utilisé pour bloquer la saisie dès
+     * que l'agent renseigne la pièce d'identité, avant même de lancer la vérification complète.
+     */
+    @Transactional(readOnly = true)
+    public PlafondClientResponse plafondClient(String nomClient, String numeroPiece, String dateNaissance) {
+        long plafond = configuration.plafondMensuel();
+        long cumul = cumulDuMois(normaliser(nomClient), numeroPiece, dateNaissance);
+        return new PlafondClientResponse(cumul, plafond, cumul >= plafond);
     }
 }
